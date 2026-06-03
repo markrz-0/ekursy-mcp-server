@@ -1,0 +1,61 @@
+# Git
+.git
+.gitmodules
+.gitignore
+
+# Submodules
+ekursy-zero/
+
+# Python Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache & compiled files
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local configuration & secrets
+.env
+.env.*
+!.env.example
+
+# IDEs & editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Builds and packaging
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Docker configs (optional but good practice)
+Dockerfile
+docker-compose.yml
+compose.yml
+docker-compose.override.yml
+compose.override.yml
+
+# OS files
+.DS_Store
+Thumbs.db

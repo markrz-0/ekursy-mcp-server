@@ -1,0 +1,20 @@
+services:
+  ekursy-zero:
+    build:
+      context: ./ekursy-zero
+    restart: unless-stopped
+
+  ekursy-mcp:
+    build:
+      context: .
+    ports:
+      - "6969:6969"
+    restart: unless-stopped
+    depends_on:
+      - ekursy-zero
+    env_file:
+      - .env
+    environment:
+      - MOODLE_API_BASE=http://ekursy-zero:8080
+      - PORT=6969
+      - MCP_TRANSPORT=streamable-http
