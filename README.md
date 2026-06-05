@@ -39,6 +39,7 @@ And manually create a `.env` file in the root directory:
 ```env
 MOODLE_USERNAME="your.email@student.put.poznan.pl"
 MOODLE_PASSWORD="your_moodle_password"
+MCP_TRANSPORT="streamable-http" # optional: defaults to streamable-http when running using docker compose, set to stdio to run locally
 ```
 
 ---
@@ -48,19 +49,23 @@ MOODLE_PASSWORD="your_moodle_password"
 ### Option A: Run via Docker Compose
 This runs both the `ekursy-zero` scraper backend and `ekursy-mcp-py` server together. The scraper remains private and isolated inside the container network (ports are not exposed to the host).
 
+By default, Docker Compose runs the MCP server in `streamable-http` mode. If you need to configure the transport type, you can set `MCP_TRANSPORT` in your `.env` file (e.g., `MCP_TRANSPORT=stdio` or `MCP_TRANSPORT=streamable-http`).
+
 Run the following command:
 ```bash
 docker compose up --build
 ```
 
-The MCP server will start on HTTP port `6969`. You can verify it by reaching the MCP endpoint:
+The MCP server will start on HTTP port `6969` (if using `streamable-http` mode). You can verify it by reaching the MCP endpoint:
 `http://localhost:6969/mcp`
 
 ### Option B: Run Locally
-To run the server locally (using stdio transport, which is standard for MCP desktop clients):
+To run the server locally using the standard `stdio` transport:
 ```bash
 uv run src/main.py
 ```
+
+*Note: By default, running the script directly uses `stdio` transport. You can force it to run as a local HTTP server by setting the `MCP_TRANSPORT` environment variable: `MCP_TRANSPORT=streamable-http uv run src/main.py` (which runs on port `6969` or the port specified in `PORT`).*
 
 ---
 
@@ -85,3 +90,31 @@ Add the following snippet to your configuration block:
 ```
 
 *Note: Ensure the `MOODLE_API_BASE` env variable points to the scraper service instance (e.g. `http://localhost:8080` if running `ekursy-zero` locally/standalone).*
+
+### Alternative Config (Local stdio Server)
+If you prefer to run the server locally using the standard input/output (`stdio`) transport:
+
+Add the following snippet to your configuration block (make sure to replace `C:\\path\\to\\ekursy-mcp-py` with the absolute path to your cloned repository, and update the environment variables):
+
+```json
+{
+  "mcpServers": {
+    "ekursy-mcp-py-stdio": {
+      "command": "uv",
+      "args": [
+        "run",
+        "src/main.py"
+      ],
+      "cwd": "C:\\path\\to\\ekursy-mcp-py",
+      "env": {
+        "MOODLE_USERNAME": "your.email@student.put.poznan.pl",
+        "MOODLE_PASSWORD": "your_moodle_password",
+        "MOODLE_API_BASE": "http://localhost:8080",
+        "MCP_TRANSPORT": "stdio"
+      }
+    }
+  }
+}
+```
+
+*Note: Ensure the `MOODLE_API_BASE` env variable points to the scraper service instance (e.g., `http://localhost:8080` if running `ekursy-zero` locally/standalone). The `MCP_TRANSPORT` is optional and defaults to `stdio` when running locally.*

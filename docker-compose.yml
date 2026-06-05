@@ -17,4 +17,4 @@ services:
     environment:
       - MOODLE_API_BASE=http://ekursy-zero:8080
       - PORT=6969
-      - MCP_TRANSPORT=streamable-http
+      - MCP_TRANSPORT=${MCP_TRANSPORT:-streamable-http}
