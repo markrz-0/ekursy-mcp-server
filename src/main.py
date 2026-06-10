@@ -3,6 +3,7 @@ import sys
 import json
 import io
 import urllib.parse
+import re
 import httpx
 from pypdf import PdfReader
 from fastmcp import FastMCP
@@ -89,8 +90,68 @@ def parse_page_fragments(fragments: list) -> str:
         elif frag_type == "resource":
             kind = frag.get('kind', 'unknown')
             markdown += f"* **Attachment** ({kind}): [{text}](resource?id={frag.get('id')}&kind={kind})\n\n"
+        elif frag_type == "forum":
+            markdown += f"* **Forum**: [{text}](forum?id={frag.get('id')})\n\n"
             
     return markdown.strip()
+
+def clean_html(html_text: str) -> str:
+    if not html_text:
+        return ""
+    text = html_text
+    # Replace common block elements with newlines
+    text = re.sub(r'</?(?:p|div|br|tr|dd|dt)[^>]*>', '\n', text)
+    # Replace links with markdown links
+    text = re.sub(r'<a\s+[^>]*href="([^"]*)"[^>]*>(.*?)</a>', r'[\2](\1)', text)
+    # Strip all remaining HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Unescape common html entities
+    text = text.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&").replace("&quot;", '"').replace("&#039;", "'")
+    # Clean up consecutive newlines
+    text = re.sub(r'\n\s*\n+', '\n\n', text)
+    return text.strip()
+
+def format_forum_details(forum: dict) -> str:
+    title = forum.get("title", "Forum")
+    description = forum.get("description", "")
+    threads = forum.get("threads", [])
+    
+    output = f"# Forum: {title}\n"
+    if description:
+        output += f"{description}\n\n"
+    else:
+        output += "\n"
+        
+    output += "## Discussion Threads\n"
+    if not threads:
+        output += "No threads found in this forum.\n"
+    for thread in threads:
+        output += f"- **{thread.get('title', '')}** (ID: {thread.get('id', '')})\n"
+        
+    return output.strip()
+
+def format_discussion_details(discussion: dict) -> str:
+    title = discussion.get("title", "Discussion")
+    posts = discussion.get("posts", [])
+    
+    output = f"# Discussion: {title}\n\n"
+    
+    if not posts:
+        output += "No posts found in this discussion thread.\n"
+        return output.strip()
+        
+    for post in posts:
+        subject = post.get("subject", "No Subject")
+        author = post.get("author", "Unknown Author")
+        time = post.get("time", "Unknown Time")
+        content = clean_html(post.get("content", ""))
+        
+        output += f"---\n### {subject}\n"
+        output += f"**Author**: {author} | **Date**: {time}\n\n"
+        output += f"{content}\n\n"
+        
+    output += "---"
+    return output.strip()
 
 def format_grades_hierarchy(nodes: list, indent: str = "") -> str:
     output = ""
@@ -224,6 +285,36 @@ async def resolve_proxy(proxyPath: str):
     async with httpx.AsyncClient(follow_redirects=False) as client:
         response = await fetch_with_auth(client, target_path)
         return await format_resource(response)
+
+@mcp.tool()
+async def get_forum(id: str) -> str:
+    """
+    Get details of a specific forum, including its description and list of discussion threads.
+    
+    Args:
+        id: The unique forum identifier string.
+    """
+    async with httpx.AsyncClient() as client:
+        response = await fetch_with_auth(client, f"/api/forum?id={id}")
+        data = response.json()
+        if not response.is_success:
+            return f"Error: {data.get('msg', 'Failed to fetch forum')}"
+        return format_forum_details(data.get("forum", {}))
+
+@mcp.tool()
+async def get_discussion(id: str) -> str:
+    """
+    Get details of a specific discussion thread, including its title and list of posts.
+    
+    Args:
+        id: The unique discussion/thread identifier string.
+    """
+    async with httpx.AsyncClient() as client:
+        response = await fetch_with_auth(client, f"/api/forum/discussion?id={id}")
+        data = response.json()
+        if not response.is_success:
+            return f"Error: {data.get('msg', 'Failed to fetch discussion')}"
+        return format_discussion_details(data.get("discussion", {}))
 
 if __name__ == "__main__":
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
