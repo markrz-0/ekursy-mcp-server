@@ -21,25 +21,71 @@ def main():
     
     # 2. Ask user for credentials
     print("\n2. Configuring credentials...")
-    email = input("Enter your Moodle/eKursy email (e.g., username@student.put.poznan.pl): ").strip()
-    while not email:
-        email = input("Email cannot be empty. Please enter your email: ").strip()
-        
-    password = getpass.getpass("Enter your Moodle/eKursy password (hidden): ").strip()
-    while not password:
-        password = getpass.getpass("Password cannot be empty. Please enter your password: ").strip()
+    env_path = os.path.join(current_dir, ".env")
+    
+    use_existing = False
+    email = ""
+    password = ""
+    
+    if os.path.exists(env_path):
+        existing_vars = {}
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" in line:
+                        key, val = line.split("=", 1)
+                        key = key.strip()
+                        val = val.strip()
+                        if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                            val = val[1:-1]
+                        existing_vars[key] = val
+        except Exception as e:
+            print(f"[WARN] Error reading existing .env file: {e}")
+
+        if existing_vars.get("MOODLE_USERNAME") and existing_vars.get("MOODLE_PASSWORD"):
+            print(f"An existing .env file was found with credentials for: {existing_vars['MOODLE_USERNAME']}")
+            while True:
+                response = input("Do you want to use the already existing .env file? (y/n): ").strip().lower()
+                if response in ("y", "yes"):
+                    use_existing = True
+                    email = existing_vars["MOODLE_USERNAME"]
+                    password = existing_vars["MOODLE_PASSWORD"]
+                    break
+                elif response in ("n", "no"):
+                    use_existing = False
+                    break
+                else:
+                    print("Please enter 'y' or 'n'.")
+        else:
+            print("An existing .env file was found, but it is incomplete or missing credentials.")
+
+    if use_existing:
+        print("[OK] Using existing credentials from .env.")
+    else:
+        email = input("Enter your Moodle/eKursy email (e.g., username@student.put.poznan.pl): ").strip()
+        while not email:
+            email = input("Email cannot be empty. Please enter your email: ").strip()
+            
+        password = getpass.getpass("Enter your Moodle/eKursy password (hidden): ").strip()
+        while not password:
+            password = getpass.getpass("Password cannot be empty. Please enter your password: ").strip()
 
     # 3. Create .env file in the root directory
     print("\n3. Creating local .env file...")
-    try:
-        env_path = os.path.join(current_dir, ".env")
-        with open(env_path, "w", encoding="utf-8") as f:
-            f.write(f'MOODLE_USERNAME="{email}"\n')
-            f.write(f'MOODLE_PASSWORD="{password}"\n')
-        print("[OK] .env file created successfully.")
-    except Exception as e:
-        print(f"[ERROR] Error writing .env file: {e}")
-        sys.exit(1)
+    if use_existing:
+        print("[OK] .env file already exists and is being reused.")
+    else:
+        try:
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.write(f'MOODLE_USERNAME="{email}"\n')
+                f.write(f'MOODLE_PASSWORD="{password}"\n')
+            print("[OK] .env file created successfully.")
+        except Exception as e:
+            print(f"[ERROR] Error writing .env file: {e}")
+            sys.exit(1)
 
     # 4. Configure Gemini / Antigravity
     print("\n4. Adding MCP server to Gemini/Antigravity configuration...")
@@ -75,7 +121,7 @@ def main():
         config_data["mcpServers"] = {}
         
     # Configure the MCP server definition
-    config_data["mcpServers"]["ekursy-mcp"] = {
+    config_data["mcpServers"]["ekursy"] = {
         "serverUrl": "http://localhost:6969/mcp"
     }
     
@@ -84,7 +130,7 @@ def main():
         os.makedirs(os.path.dirname(target_path), exist_ok=True)
         with open(target_path, "w", encoding="utf-8") as f:
             json.dump(config_data, f, indent=2)
-        print(f"[OK] Successfully added 'ekursy-mcp' to config at {target_path}")
+        print(f"[OK] Successfully added 'ekursy' to config at {target_path}")
     except Exception as e:
         print(f"[ERROR] Error updating Gemini config: {e}")
         print("Please add the config manually as detailed in the README.")
