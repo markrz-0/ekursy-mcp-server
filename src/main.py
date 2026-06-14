@@ -8,6 +8,7 @@ import httpx
 from pypdf import PdfReader
 from fastmcp import FastMCP
 from fastmcp.utilities.types import Image
+import mimetypes
 
 # Environment Configuration
 USERNAME = os.environ.get("MOODLE_USERNAME")
@@ -206,6 +207,74 @@ async def format_resource(response: httpx.Response):
 
     return f"Successfully resolved binary ({content_type})."
 
+def determine_filename(response: httpx.Response, resourceId: str | None = None, kind: str | None = None, proxyPath: str | None = None) -> str:
+    content_disposition = response.headers.get("content-disposition", "")
+    filename = None
+    if content_disposition:
+        match = re.search(r"filename\*=UTF-8''([^;\n]+)", content_disposition, re.IGNORECASE)
+        if match:
+            filename = urllib.parse.unquote(match.group(1))
+        else:
+            match = re.search(r'filename="?([^";\n]+)"?', content_disposition, re.IGNORECASE)
+            if match:
+                filename = match.group(1)
+                
+    if filename:
+        filename = os.path.basename(filename)
+        if filename:
+            return filename
+
+    content_type = response.headers.get("content-type", "").lower()
+    mime = content_type.split(";")[0].strip()
+    extension = mimetypes.guess_extension(mime) or ""
+    
+    if mime == "application/pdf":
+        extension = ".pdf"
+    elif mime == "text/html":
+        extension = ".html"
+        
+    if resourceId:
+        filename = f"{kind or 'resource'}_{resourceId}{extension}"
+    elif proxyPath:
+        parsed = urllib.parse.urlparse(proxyPath)
+        path_filename = os.path.basename(parsed.path)
+        if path_filename:
+            name_without_ext, ext = os.path.splitext(path_filename)
+            if ext.lower() == ".php" or (extension and ext.lower() != extension.lower() and ext.lower() in [".php", ".html", ""]):
+                filename = f"{name_without_ext}{extension}"
+            else:
+                filename = path_filename
+        else:
+            sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', proxyPath.strip("/").replace("/", "_"))
+            if not sanitized:
+                sanitized = "proxy_resource"
+            filename = f"{sanitized}{extension}"
+    else:
+        filename = f"downloaded_resource{extension}"
+        
+    return filename
+
+async def save_resource(response: httpx.Response, savepath: str, resourceId: str | None = None, kind: str | None = None, proxyPath: str | None = None) -> str:
+    if 300 <= response.status_code < 400:
+        return f"Resource redirects to: {response.headers.get('location')}"
+    if not response.is_success:
+        return f"Failed to download material: HTTP {response.status_code}"
+
+    try:
+        os.makedirs(savepath, exist_ok=True)
+    except Exception as e:
+        return f"Failed to create directory '{savepath}': {str(e)}"
+
+    filename = determine_filename(response, resourceId, kind, proxyPath)
+    filepath = os.path.join(savepath, filename)
+    
+    try:
+        with open(filepath, "wb") as f:
+            f.write(response.content)
+        return f"Successfully saved resource to {os.path.abspath(filepath)} ({len(response.content)} bytes)"
+    except Exception as e:
+        return f"Failed to save resource to {filepath}: {str(e)}"
+
 # 4. MCP Tools Registration
 
 @mcp.tool()
@@ -260,30 +329,36 @@ async def get_course_grades(id: str) -> str:
         return formatted_grades if formatted_grades else "No grades found for this course."
 
 @mcp.tool()
-async def resolve_material_link(resourceId: str, kind: str):
+async def resolve_material_link(resourceId: str, kind: str, savepath: str | None = None):
     """
     Download and parse internal university files (PDFs, Images) - resource.
     
     Args:
         resourceId: Unique id of the resource
         kind: Resource type selections (e.g., 'resource', 'assign')
+        savepath: Optional directory path to save the resource instead of parsing it.
     """
     target_path = f"/api/resource?id={resourceId}&kind={kind or 'resource'}"
     async with httpx.AsyncClient(follow_redirects=False) as client:
         response = await fetch_with_auth(client, target_path)
+        if savepath:
+            return await save_resource(response, savepath, resourceId=resourceId, kind=kind)
         return await format_resource(response)
 
 @mcp.tool()
-async def resolve_proxy(proxyPath: str):
+async def resolve_proxy(proxyPath: str, savepath: str | None = None):
     """
     Download and parse internal university proxies (PDFs, Images, URLs etc).
     
     Args:
         proxyPath: Path of the proxy page fragment
+        savepath: Optional directory path to save the resource instead of parsing it.
     """
     target_path = f"/api/proxy?path={urllib.parse.quote(proxyPath)}"
     async with httpx.AsyncClient(follow_redirects=False) as client:
         response = await fetch_with_auth(client, target_path)
+        if savepath:
+            return await save_resource(response, savepath, proxyPath=proxyPath)
         return await format_resource(response)
 
 @mcp.tool()
