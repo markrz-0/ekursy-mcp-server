@@ -196,6 +196,10 @@ async def save_resource(response: httpx.Response, savepath: str, resourceId: str
     if not response.is_success:
         return f"Failed to download material: HTTP {response.status_code}"
 
+    is_docker = os.environ.get("RUNNING_IN_DOCKER") == "true"
+    if is_docker:
+        savepath = "/app/downloads"
+
     try:
         os.makedirs(savepath, exist_ok=True)
     except Exception as e:
@@ -207,6 +211,14 @@ async def save_resource(response: httpx.Response, savepath: str, resourceId: str
     try:
         with open(filepath, "wb") as f:
             f.write(response.content)
+        if is_docker:
+            host_downloads_dir = os.environ.get("HOST_DOWNLOADS_DIR")
+            if host_downloads_dir:
+                host_filepath = os.path.join(host_downloads_dir, filename)
+                if ":" in host_filepath:
+                    host_filepath = host_filepath.replace("/", "\\")
+                return f"Successfully saved resource to host machine at: {host_filepath} ({len(response.content)} bytes)"
+            return f"Successfully saved resource to './downloads/{filename}' on the host machine ({len(response.content)} bytes)"
         return f"Successfully saved resource to {os.path.abspath(filepath)} ({len(response.content)} bytes)"
     except Exception as e:
         return f"Failed to save resource to {filepath}: {str(e)}"

@@ -51,6 +51,11 @@ This runs both the `ekursy-zero` scraper backend and `ekursy-mcp-py` server toge
 
 By default, Docker Compose runs the MCP server in `streamable-http` mode. If you need to configure the transport type, you can set `MCP_TRANSPORT` in your `.env` file (e.g., `MCP_TRANSPORT=stdio` or `MCP_TRANSPORT=streamable-http`).
 
+#### File Downloads & Shared Volumes
+When running via Docker Compose, the host's `./downloads` directory is mounted to `/app/downloads` in the container.
+- The environment variable `HOST_DOWNLOADS_DIR` is set in `docker-compose.yml` as `${PWD}/downloads`. 
+- When an MCP tool calls `save_resource` (e.g. download PDF or images), the file is saved inside this volume. The server uses `HOST_DOWNLOADS_DIR` to report the exact absolute host path back to the MCP caller so you know exactly where to locate the file on your machine.
+
 Run the following command:
 ```bash
 docker compose up --build

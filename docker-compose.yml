@@ -18,3 +18,7 @@ services:
       - MOODLE_API_BASE=http://ekursy-zero:8080
       - PORT=6969
       - MCP_TRANSPORT=${MCP_TRANSPORT:-streamable-http}
+      - RUNNING_IN_DOCKER=true
+      - HOST_DOWNLOADS_DIR=${PWD}/downloads
+    volumes:
+      - ./downloads:/app/downloads
