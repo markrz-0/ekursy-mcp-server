@@ -1,6 +1,7 @@
 import json
 import httpx
 import urllib.parse
+from config import TIMEOUT
 from server import mcp
 from auth import fetch_with_auth
 from parsers import (
@@ -17,7 +18,7 @@ from parsers import (
 @mcp.tool()
 async def get_user_profile() -> str:
     """Fetch the authenticated student's profile information and USOS number."""
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         response = await fetch_with_auth(client, "/api/me")
         if response.is_success:
             return json.dumps(response.json(), indent=2)
@@ -26,7 +27,7 @@ async def get_user_profile() -> str:
 @mcp.tool()
 async def list_courses() -> str:
     """Get a list of all courses the student is enrolled in."""
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         response = await fetch_with_auth(client, "/api/course_list")
         if response.is_success:
             return json.dumps(response.json().get("courses", []), indent=2)
@@ -40,7 +41,7 @@ async def get_course_content(id: str) -> str:
     Args:
         id: The internal unique course identifier string.
     """
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         response = await fetch_with_auth(client, f"/api/course?id={id}")
         data = response.json()
         if not response.is_success:
@@ -55,7 +56,7 @@ async def get_course_grades(id: str) -> str:
     Args:
         id: The internal unique course identifier string.
     """
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         response = await fetch_with_auth(client, f"/api/course_grades?id={id}")
         data = response.json()
         
@@ -76,7 +77,7 @@ async def resolve_material_link(resourceId: str, kind: str, savepath: str | None
         savepath: Optional directory path to save the resource instead of parsing it.
     """
     target_path = f"/api/resource?id={resourceId}&kind={kind or 'resource'}"
-    async with httpx.AsyncClient(follow_redirects=False) as client:
+    async with httpx.AsyncClient(follow_redirects=False, timeout=TIMEOUT) as client:
         response = await fetch_with_auth(client, target_path)
         if savepath:
             return await save_resource(response, savepath, resourceId=resourceId, kind=kind)
@@ -92,7 +93,7 @@ async def resolve_proxy(proxyPath: str, savepath: str | None = None):
         savepath: Optional directory path to save the resource instead of parsing it.
     """
     target_path = f"/api/proxy?path={urllib.parse.quote(proxyPath)}"
-    async with httpx.AsyncClient(follow_redirects=False) as client:
+    async with httpx.AsyncClient(follow_redirects=False, timeout=TIMEOUT) as client:
         response = await fetch_with_auth(client, target_path)
         if savepath:
             return await save_resource(response, savepath, proxyPath=proxyPath)
@@ -106,7 +107,7 @@ async def get_forum(id: str) -> str:
     Args:
         id: The unique forum identifier string.
     """
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         response = await fetch_with_auth(client, f"/api/forum?id={id}")
         data = response.json()
         if not response.is_success:
@@ -121,7 +122,7 @@ async def get_discussion(id: str) -> str:
     Args:
         id: The unique discussion/thread identifier string.
     """
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         response = await fetch_with_auth(client, f"/api/forum/discussion?id={id}")
         data = response.json()
         if not response.is_success:

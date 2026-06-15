@@ -6,7 +6,9 @@ USERNAME = os.environ.get("MOODLE_USERNAME")
 PASSWORD = os.environ.get("MOODLE_PASSWORD")
 PORT = int(os.environ.get('PORT', '6969'))
 API_BASE_URL = os.environ.get("MOODLE_API_BASE", "http://moodle-api:8080")
+TIMEOUT = float(os.environ.get("MOODLE_TIMEOUT", "30.0"))
 
 if not USERNAME or not PASSWORD:
     print("CRITICAL ERROR: MOODLE_USERNAME and MOODLE_PASSWORD are required.", file=sys.stderr)
     sys.exit(1)
+
