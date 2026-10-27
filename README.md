@@ -1,125 +1,114 @@
-# eKursy Python MCP Server (`ekursy-mcp-py`)
+# eKursy MCP Server
 
-A Model Context Protocol (MCP) server written in Python using FastMCP, which integrates with the `ekursy-zero` Rust scraper to expose student profile information, course lists, course grades, page contents, and course materials (PDF/images) from the eKursy platform to AI tools.
+A remote Model Context Protocol server that exposes a student's eKursy profile,
+courses, grades, forums, and course materials. It uses FastMCP over Streamable
+HTTP, the bundled `ekursy-zero` Rust service, and GitHub OAuth with an explicit
+user allowlist.
 
----
+The university credentials never leave the server. OAuth tokens authorize MCP
+requests but do not contain the university username or password.
 
-## Prerequisites
+## Production endpoint
 
-Before running the server, ensure you have:
-1. **Git** installed on your system.
-2. **Docker** installed on your system
-3. **Python** installed on your system
+The production MCP URL is:
 
----
+```text
+https://mk.uni.markrz0.dev/mcp
+```
 
-## Installation & Setup
-
-### Method 1: Automatic Setup Script for Antigravity (Recommended)
-
-> If you dont use antigravity this won't work for you. See manual methods below or ask your AI agent
-
-This repository includes a cross-platform setup script that automatically initializes git submodules, prompts you for credentials to create the `.env` file, and configures the Gemini / Antigravity integration file for you.
-
-- **Windows**: Run `scripts\setup.bat` (Double-click or run in terminal: `.\scripts\setup.bat`)
-- **macOS / Linux**: Run `./scripts/setup.sh` (or `bash scripts/setup.sh`)
-
-The script will configure MCP in Antigravity and start the server in docker. You only need to restart Antigravity and this MCP server should work
+OAuth discovery and callback routes are served on the same origin. The Docker
+port is bound only to `127.0.0.1`; nginx is the public TLS endpoint.
 
 ---
 
-## Alternative/Manual Methods
+## Production prerequisites
 
-### 1. Initialize Submodule & Credentials Manually
-If you prefer not to use the setup script:
+1. Create a GitHub OAuth app at <https://github.com/settings/developers>.
+2. Set its homepage URL to `https://mk.uni.markrz0.dev`.
+3. Set its authorization callback URL to
+   `https://mk.uni.markrz0.dev/auth/callback`.
+4. Copy `.env.example` to `.env`, fill the GitHub client ID/secret and
+   university credentials, and generate `OAUTH_JWT_SIGNING_KEY` with
+   `openssl rand -hex 32`.
+5. Keep `.env` mode `600` on the server.
+
+`OAUTH_ALLOWED_GITHUB_USERS` is the security boundary around the shared
+university account. Do not remove the allowlist or add users who should not see
+the account data.
+
+## Deploy
+
 ```bash
 git submodule update --init --recursive
-```
-And manually create a `.env` file in the root directory:
-```env
-MOODLE_USERNAME="your.email@student.put.poznan.pl"
-MOODLE_PASSWORD="your_moodle_password"
-MCP_TRANSPORT="streamable-http" # optional: defaults to streamable-http when running using docker compose, set to stdio to run locally
+docker compose up --build -d
+docker compose ps
+docker compose logs --tail=100 ekursy-mcp
 ```
 
----
+The OAuth state and downloaded course files use named Docker volumes, so they
+survive container recreation and are not stored in the Git checkout.
 
-## How to Run
+To install nginx and obtain the certificate on Ubuntu, copy
+`deploy/install-nginx.sh` to the VPS and run:
 
-### Option A: Run via Docker Compose
-This runs both the `ekursy-zero` scraper backend and `ekursy-mcp-py` server together. The scraper remains private and isolated inside the container network (ports are not exposed to the host).
-
-By default, Docker Compose runs the MCP server in `streamable-http` mode. If you need to configure the transport type, you can set `MCP_TRANSPORT` in your `.env` file (e.g., `MCP_TRANSPORT=stdio` or `MCP_TRANSPORT=streamable-http`).
-
-#### File Downloads & Shared Volumes
-When running via Docker Compose, the host's `./downloads` directory is mounted to `/app/downloads` in the container.
-- The environment variable `HOST_DOWNLOADS_DIR` is set in `docker-compose.yml` as `${PWD}/downloads`. 
-- When an MCP tool calls `save_resource` (e.g. download PDF or images), the file is saved inside this volume. The server uses `HOST_DOWNLOADS_DIR` to report the exact absolute host path back to the MCP caller so you know exactly where to locate the file on your machine.
-
-Run the following command:
 ```bash
-docker compose up --build
+sudo bash ~/install-ekursy-nginx.sh you@example.com
 ```
 
-The MCP server will start on HTTP port `6969` (if using `streamable-http` mode). You can verify it by reaching the MCP endpoint:
-`http://localhost:6969/mcp`
+The script validates nginx before every reload and lets Certbot add the TLS and
+HTTP-to-HTTPS configuration.
 
-### Option B: Run Locally
-To run the server locally using the standard `stdio` transport:
+On the prepared VPS deployment, enter the GitHub OAuth credentials without
+putting the secret in shell history, start the containers, and then install TLS:
+
 ```bash
+bash ~/finish-ekursy-deploy.sh
+sudo bash ~/install-ekursy-nginx.sh you@example.com
+```
+
+## Connect from ChatGPT
+
+Add a custom MCP server/plugin with the server URL
+`https://mk.uni.markrz0.dev/mcp` and OAuth authentication. Complete the GitHub
+authorization as the allowlisted account. Then install the resulting plugin and
+use it from the conversation in which you create the scheduled task.
+
+The exact availability of custom MCP servers and scheduled tasks depends on
+your ChatGPT plan and workspace policy.
+
+## Local development
+
+Initialize the scraper submodule and install dependencies with `uv`. For local
+stdio use, `.env` only needs `MOODLE_USERNAME` and `MOODLE_PASSWORD`; stdio
+defaults to no MCP-layer OAuth:
+
+```bash
+git submodule update --init --recursive
+uv sync --frozen
 uv run src/main.py
 ```
 
-*Note: By default, running the script directly uses `stdio` transport. You can force it to run as a local HTTP server by setting the `MCP_TRANSPORT` environment variable: `MCP_TRANSPORT=streamable-http uv run src/main.py` (which runs on port `6969` or the port specified in `PORT`).*
-
----
-
-## Manual Integration with Antigravity / Gemini MCP
-
-To manually connect this Python MCP server to your Antigravity environment:
-
-1. Locate the configuration file on your system (e.g., `C:\Users\Marcin\.gemini\config\mcp_config.json` or `config.json`).
-2. Add a new server entry inside the `mcpServers` object.
-
-### Recommended Config (Docker / Streamable HTTP Server)
-Add the following snippet to your configuration block:
+Example stdio client configuration:
 
 ```json
 {
   "mcpServers": {
-    "ekursy-mcp-py": {
-      "serverUrl": "http://localhost:6969/mcp"
-    }
-  }
-}
-```
-
-*Note: Ensure the `MOODLE_API_BASE` env variable points to the scraper service instance (e.g. `http://localhost:8080` if running `ekursy-zero` locally/standalone).*
-
-### Alternative Config (Local stdio Server)
-If you prefer to run the server locally using the standard input/output (`stdio`) transport:
-
-Add the following snippet to your configuration block (make sure to replace `C:\\path\\to\\ekursy-mcp-py` with the absolute path to your cloned repository, and update the environment variables):
-
-```json
-{
-  "mcpServers": {
-    "ekursy-mcp-py-stdio": {
+    "ekursy": {
       "command": "uv",
-      "args": [
-        "run",
-        "src/main.py"
-      ],
+      "args": ["run", "src/main.py"],
       "cwd": "C:\\path\\to\\ekursy-mcp-py",
       "env": {
         "MOODLE_USERNAME": "your.email@student.put.poznan.pl",
         "MOODLE_PASSWORD": "your_moodle_password",
-        "MOODLE_API_BASE": "http://localhost:8080",
-        "MCP_TRANSPORT": "stdio"
+        "MOODLE_API_BASE": "http://localhost:8080"
       }
     }
   }
 }
 ```
 
-*Note: Ensure the `MOODLE_API_BASE` env variable points to the scraper service instance (e.g., `http://localhost:8080` if running `ekursy-zero` locally/standalone). The `MCP_TRANSPORT` is optional and defaults to `stdio` when running locally.*
+Run tests with:
+
+```bash
+python -m unittest discover -s tests -v
+```

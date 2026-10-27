@@ -3,12 +3,16 @@ services:
     build:
       context: ./ekursy-zero
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   ekursy-mcp:
     build:
       context: .
     ports:
-      - "6969:6969"
+      - "127.0.0.1:6969:6969"
     restart: unless-stopped
     depends_on:
       - ekursy-zero
@@ -18,7 +22,24 @@ services:
       - MOODLE_API_BASE=http://ekursy-zero:8080
       - PORT=6969
       - MCP_TRANSPORT=${MCP_TRANSPORT:-streamable-http}
+      - MCP_AUTH_PROVIDER=${MCP_AUTH_PROVIDER:-github}
+      - MCP_PUBLIC_URL=${MCP_PUBLIC_URL:-https://mk.uni.markrz0.dev}
       - RUNNING_IN_DOCKER=true
-      - HOST_DOWNLOADS_DIR=${PWD}/downloads
+      - FASTMCP_HOME=/app/data
     volumes:
-      - ./downloads:/app/downloads
+      - ekursy-downloads:/app/downloads
+      - ekursy-oauth-data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',6969),2); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  ekursy-downloads:
+  ekursy-oauth-data:
