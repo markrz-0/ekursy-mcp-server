@@ -31,6 +31,12 @@ PROFILE_SCHEMA = {
     "additionalProperties": False,
 }
 
+READ_ONLY_ANNOTATIONS = {
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "openWorldHint": False,
+}
+
 
 def _require_moodle_user_id() -> str:
     account = require_current_account()
@@ -44,11 +50,7 @@ def _require_moodle_user_id() -> str:
 
 @mcp.tool(
     title="Current eKursy connection",
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "openWorldHint": False,
-    },
+    annotations=READ_ONLY_ANNOTATIONS,
     output_schema=PROFILE_SCHEMA,
     meta={"openai/profile": True},
 )
@@ -64,11 +66,7 @@ async def get_connection_profile() -> dict[str, str]:
 
 @mcp.tool(
     title="Create Moodle account setup link",
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "openWorldHint": False,
-    },
+    annotations=READ_ONLY_ANNOTATIONS,
 )
 async def create_account_setup_link() -> str:
     """Create a short-lived browser link for adding or replacing Moodle credentials."""
@@ -81,7 +79,7 @@ async def create_account_setup_link() -> str:
         f"{urllib.parse.quote(token, safe='')}"
     )
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 async def get_user_profile() -> str:
     """Fetch the authenticated student's profile information and USOS number."""
     user_id = _require_moodle_user_id()
@@ -91,7 +89,7 @@ async def get_user_profile() -> str:
             return json.dumps(response.json(), indent=2)
         return f"Error: {response.json().get('msg')}"
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 async def list_courses() -> str:
     """Get a list of all courses the student is enrolled in."""
     user_id = _require_moodle_user_id()
@@ -101,7 +99,7 @@ async def list_courses() -> str:
             return json.dumps(response.json().get("courses", []), indent=2)
         return f"Error: {response.json().get('msg')}"
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 async def get_course_content(id: str) -> str:
     """
     Get the detailed page fragments and sections for a specific course (including presentations, lecturer names, assignments, and other files).
@@ -117,7 +115,7 @@ async def get_course_content(id: str) -> str:
             return f"Error: {data.get('msg')}"
         return parse_page_fragments(data.get("result", []))
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 async def get_course_grades(id: str) -> str:
     """
     Fetch the hierarchical gradebook for a specific course.
@@ -139,13 +137,7 @@ async def get_course_grades(id: str) -> str:
         return formatted_grades if formatted_grades else "No grades found for this course."
 
 
-@mcp.tool(
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "openWorldHint": False,
-    }
-)
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 async def get_course_deadlines(
     course_id: int,
     from_timestamp: int | None = None,
@@ -191,7 +183,7 @@ async def get_course_deadlines(
         return json.dumps(deadlines, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 async def resolve_material_link(resourceId: str, kind: str, savepath: str | None = None):
     """
     Download and parse internal university files (PDFs, Images) - resource.
@@ -209,7 +201,7 @@ async def resolve_material_link(resourceId: str, kind: str, savepath: str | None
             return await save_resource(response, savepath, resourceId=resourceId, kind=kind)
         return await format_resource(response)
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 async def resolve_proxy(proxyPath: str, savepath: str | None = None):
     """
     Download and parse internal university proxies (PDFs, Images, URLs etc).
@@ -226,7 +218,7 @@ async def resolve_proxy(proxyPath: str, savepath: str | None = None):
             return await save_resource(response, savepath, proxyPath=proxyPath)
         return await format_resource(response)
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 async def get_forum(id: str) -> str:
     """
     Get details of a specific forum, including its description and list of discussion threads.
@@ -242,7 +234,7 @@ async def get_forum(id: str) -> str:
             return f"Error: {data.get('msg', 'Failed to fetch forum')}"
         return format_forum_details(data.get("forum", {}))
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 async def get_discussion(id: str) -> str:
     """
     Get details of a specific discussion thread, including its title and list of posts.
