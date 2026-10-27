@@ -26,6 +26,8 @@ OAUTH_ALLOWED_REDIRECT_URIS = [
         (
             "https://chatgpt.com/connector_platform_oauth_redirect,"
             "https://chatgpt.com/connector/oauth/*,"
+            "https://claude.ai/api/mcp/auth_callback,"
+            "https://claude.com/api/mcp/auth_callback,"
             "http://127.0.0.1:*/callback"
         ),
     ).split(",")
