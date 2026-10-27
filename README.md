@@ -1,8 +1,9 @@
 # eKursy MCP Server
 
 A remote Model Context Protocol server that exposes a student's eKursy profile,
-courses, grades, forums, and course materials. It uses FastMCP over Streamable
-HTTP, the bundled `ekursy-zero` Rust service, and invite-only GitHub OAuth.
+courses, grades, deadlines, forums, and course materials. It uses FastMCP over
+Streamable HTTP, the bundled `ekursy-zero` Rust service, and invite-only GitHub
+OAuth.
 
 Each GitHub identity maps to its own Moodle credentials in SQLite. Credential
 fields are encrypted with Fernet authenticated encryption before being written

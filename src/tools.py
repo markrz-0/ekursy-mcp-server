@@ -138,6 +138,59 @@ async def get_course_grades(id: str) -> str:
         formatted_grades = format_grades_hierarchy(data.get("result", []))
         return formatted_grades if formatted_grades else "No grades found for this course."
 
+
+@mcp.tool(
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "openWorldHint": False,
+    }
+)
+async def get_course_deadlines(
+    course_id: int,
+    from_timestamp: int | None = None,
+    to_timestamp: int | None = None,
+) -> str:
+    """Fetch pending deadlines and calendar actions for a course.
+
+    Args:
+        course_id: Numeric internal course identifier.
+        from_timestamp: Optional inclusive lower bound as a Unix timestamp.
+            Omit it to include overdue items.
+        to_timestamp: Optional inclusive upper bound as a Unix timestamp.
+    """
+    if course_id < 0:
+        raise ToolError("course_id must not be negative")
+    if from_timestamp is not None and from_timestamp < 0:
+        raise ToolError("from_timestamp must not be negative")
+    if to_timestamp is not None and to_timestamp < 0:
+        raise ToolError("to_timestamp must not be negative")
+    if (
+        from_timestamp is not None
+        and to_timestamp is not None
+        and from_timestamp > to_timestamp
+    ):
+        raise ToolError("from_timestamp must not be greater than to_timestamp")
+
+    query: dict[str, int] = {"id": course_id}
+    if from_timestamp is not None:
+        query["from"] = from_timestamp
+    if to_timestamp is not None:
+        query["to"] = to_timestamp
+
+    user_id = _require_moodle_user_id()
+    endpoint = f"/api/course_deadlines?{urllib.parse.urlencode(query)}"
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        response = await fetch_with_auth(client, user_id, endpoint)
+        data = response.json()
+        if not response.is_success:
+            return f"Error: {data.get('msg', 'Failed to fetch course deadlines')}"
+        deadlines = data.get("deadlines", [])
+        if not deadlines:
+            return "No deadlines found for this course and time window."
+        return json.dumps(deadlines, indent=2)
+
+
 @mcp.tool()
 async def resolve_material_link(resourceId: str, kind: str, savepath: str | None = None):
     """
