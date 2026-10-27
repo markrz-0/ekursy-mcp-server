@@ -1,50 +1,92 @@
+from __future__ import annotations
+
+import asyncio
+from collections import defaultdict
+
 import httpx
-from config import USERNAME, PASSWORD, API_BASE_URL
 
-# In-Memory Session State
-active_session_key: str | None = None
+from accounts import CredentialsNotConfigured, get_account_store
+from config import API_BASE_URL, PASSWORD, USERNAME
 
-# 1. Authentication Engine
-async def login_to_moodle(client: httpx.AsyncClient) -> str:
-    global active_session_key
+
+_active_session_keys: dict[str, str] = {}
+_session_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
+async def login_to_moodle(client: httpx.AsyncClient, user_id: str) -> str:
+    if user_id == "local":
+        if not USERNAME or not PASSWORD:
+            raise CredentialsNotConfigured("Local Moodle credentials are missing")
+        username, password = USERNAME, PASSWORD
+    else:
+        username, password = get_account_store().get_credentials(user_id)
     response = await client.post(
         f"{API_BASE_URL}/api/login",
-        json={"email": USERNAME, "password": PASSWORD}
+        json={"email": username, "password": password},
     )
 
     if not response.is_success:
         try:
             err_data = response.json()
             error_code = err_data.get("error", "AUTH_ERR")
-            msg = err_data.get("msg", "Unknown authentication error")
+            message = err_data.get("msg", "Unknown authentication error")
         except Exception:
             error_code = "AUTH_ERR"
-            msg = "Unknown authentication error"
-        raise Exception(f"[{error_code}] {msg}")
+            message = "Unknown authentication error"
+        raise RuntimeError(f"[{error_code}] {message}")
 
     data = response.json()
-    active_session_key = data.get("moodleSessionKey")
-    return active_session_key
+    session_key = data.get("moodleSessionKey")
+    if not isinstance(session_key, str) or not session_key:
+        raise RuntimeError("Moodle login did not return a session key")
+    _active_session_keys[user_id] = session_key
+    return session_key
 
-# 2. Authenticated Fetch Helper (Handles 401 Auto-Recovery)
-async def fetch_with_auth(client: httpx.AsyncClient, endpoint: str, **kwargs) -> httpx.Response:
-    global active_session_key
-    if not active_session_key:
-        await login_to_moodle(client)
 
-    headers = kwargs.pop("headers", {})
-    headers["Authorization"] = active_session_key
+async def _get_or_create_session(client: httpx.AsyncClient, user_id: str) -> str:
+    session_key = _active_session_keys.get(user_id)
+    if session_key:
+        return session_key
+    async with _session_locks[user_id]:
+        session_key = _active_session_keys.get(user_id)
+        if session_key:
+            return session_key
+        return await login_to_moodle(client, user_id)
 
-    # Manual request helper
-    async def make_request():
-        return await client.get(f"{API_BASE_URL}{endpoint}", headers=headers, **kwargs)
+
+def invalidate_moodle_session(user_id: str) -> None:
+    _active_session_keys.pop(user_id, None)
+
+
+async def validate_moodle_credentials(username: str, password: str) -> None:
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            f"{API_BASE_URL}/api/login",
+            json={"email": username, "password": password},
+        )
+    if not response.is_success:
+        raise CredentialsNotConfigured("Moodle rejected these credentials")
+    data = response.json()
+    if not data.get("moodleSessionKey"):
+        raise CredentialsNotConfigured("Moodle did not return a session key")
+
+
+async def fetch_with_auth(
+    client: httpx.AsyncClient, user_id: str, endpoint: str, **kwargs
+) -> httpx.Response:
+    session_key = await _get_or_create_session(client, user_id)
+    headers = dict(kwargs.pop("headers", {}))
+    headers["Authorization"] = session_key
+
+    async def make_request() -> httpx.Response:
+        return await client.get(
+            f"{API_BASE_URL}{endpoint}", headers=headers, **kwargs
+        )
 
     response = await make_request()
-
-    # Desync Recovery: Re-login and retry once if the session expired
     if response.status_code == 401:
-        await login_to_moodle(client)
-        headers["Authorization"] = active_session_key
+        async with _session_locks[user_id]:
+            invalidate_moodle_session(user_id)
+            headers["Authorization"] = await login_to_moodle(client, user_id)
         response = await make_request()
-
     return response

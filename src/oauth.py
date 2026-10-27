@@ -7,27 +7,25 @@ import httpx
 from fastmcp.server.auth import AccessToken
 from fastmcp.server.auth.providers.github import GitHubProvider
 
+from accounts import AccountStore
+
 logger = logging.getLogger(__name__)
 
 
-def github_login_is_allowed(
-    token: AccessToken | None, allowed_logins: set[str]
-) -> bool:
-    """Return True only for a GitHub identity explicitly allowlisted by login."""
-    if token is None:
-        return False
-    upstream_claims = token.claims.get("upstream_claims", {})
-    login = upstream_claims.get("login")
-    return isinstance(login, str) and login.lower() in allowed_logins
-
-
 class AllowlistedGitHubProvider(GitHubProvider):
-    """GitHub OAuth proxy that limits access to explicitly configured users."""
+    """GitHub OAuth proxy backed by an invite-only account database."""
 
-    def __init__(self, *, allowed_logins: set[str], **kwargs: Any) -> None:
-        if not allowed_logins:
-            raise ValueError("At least one allowed GitHub login is required")
-        self.allowed_logins = {login.lower() for login in allowed_logins}
+    def __init__(
+        self,
+        *,
+        account_store: AccountStore,
+        bootstrap_logins: set[str],
+        bootstrap_credentials: tuple[str, str] | None,
+        **kwargs: Any,
+    ) -> None:
+        self.account_store = account_store
+        self.bootstrap_logins = {login.lower() for login in bootstrap_logins}
+        self.bootstrap_credentials = bootstrap_credentials
         super().__init__(**kwargs)
 
     async def _extract_upstream_claims(
@@ -60,7 +58,20 @@ class AllowlistedGitHubProvider(GitHubProvider):
 
     async def verify_token(self, token: str) -> AccessToken | None:
         verified = await super().verify_token(token)
-        if not github_login_is_allowed(verified, self.allowed_logins):
-            logger.warning("Rejected an OAuth token for a non-allowlisted GitHub user")
+        if verified is None:
+            return None
+        upstream_claims = verified.claims.get("upstream_claims", {})
+        github_user_id = upstream_claims.get("sub")
+        github_login = upstream_claims.get("login")
+        if not isinstance(github_user_id, str) or not isinstance(github_login, str):
+            logger.warning("Rejected an OAuth token without a stable GitHub identity")
+            return None
+        if not self.account_store.authorize_identity(
+            github_user_id,
+            github_login,
+            self.bootstrap_logins,
+            self.bootstrap_credentials,
+        ):
+            logger.warning("Rejected OAuth for a GitHub user who was not invited")
             return None
         return verified

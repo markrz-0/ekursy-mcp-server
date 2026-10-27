@@ -26,6 +26,7 @@ services:
       - MCP_PUBLIC_URL=${MCP_PUBLIC_URL:-https://mk.uni.markrz0.dev}
       - RUNNING_IN_DOCKER=true
       - FASTMCP_HOME=/app/data
+      - DATABASE_PATH=/app/data/ekursy.db
     volumes:
       - ekursy-downloads:/app/downloads
       - ekursy-oauth-data:/app/data

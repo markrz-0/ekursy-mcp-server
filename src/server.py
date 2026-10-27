@@ -7,7 +7,10 @@ from config import (
     OAUTH_GITHUB_CLIENT_ID,
     OAUTH_GITHUB_CLIENT_SECRET,
     OAUTH_JWT_SIGNING_KEY,
+    PASSWORD,
+    USERNAME,
 )
+from accounts import get_account_store
 from oauth import AllowlistedGitHubProvider
 
 
@@ -20,7 +23,9 @@ def build_auth_provider():
         client_secret=OAUTH_GITHUB_CLIENT_SECRET,
         base_url=MCP_PUBLIC_URL,
         required_scopes=["read:user"],
-        allowed_logins=OAUTH_ALLOWED_GITHUB_USERS,
+        account_store=get_account_store(),
+        bootstrap_logins=OAUTH_ALLOWED_GITHUB_USERS,
+        bootstrap_credentials=(USERNAME, PASSWORD) if USERNAME and PASSWORD else None,
         allowed_client_redirect_uris=OAUTH_ALLOWED_REDIRECT_URIS,
         jwt_signing_key=OAUTH_JWT_SIGNING_KEY,
         require_authorization_consent=True,

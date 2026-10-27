@@ -2,11 +2,11 @@
 
 A remote Model Context Protocol server that exposes a student's eKursy profile,
 courses, grades, forums, and course materials. It uses FastMCP over Streamable
-HTTP, the bundled `ekursy-zero` Rust service, and GitHub OAuth with an explicit
-user allowlist.
+HTTP, the bundled `ekursy-zero` Rust service, and invite-only GitHub OAuth.
 
-The university credentials never leave the server. OAuth tokens authorize MCP
-requests but do not contain the university username or password.
+Each GitHub identity maps to its own Moodle credentials in SQLite. Credential
+fields are encrypted with Fernet authenticated encryption before being written
+to disk. OAuth tokens and MCP tool calls never contain the university password.
 
 ## Production endpoint
 
@@ -27,14 +27,19 @@ port is bound only to `127.0.0.1`; nginx is the public TLS endpoint.
 2. Set its homepage URL to `https://mk.uni.markrz0.dev`.
 3. Set its authorization callback URL to
    `https://mk.uni.markrz0.dev/auth/callback`.
-4. Copy `.env.example` to `.env`, fill the GitHub client ID/secret and
-   university credentials, and generate `OAUTH_JWT_SIGNING_KEY` with
+4. Copy `.env.example` to `.env`, fill the GitHub client ID/secret and optional
+   initial university credentials, and independently generate both
+   `OAUTH_JWT_SIGNING_KEY` and `CREDENTIAL_ENCRYPTION_KEY` with
    `openssl rand -hex 32`.
 5. Keep `.env` mode `600` on the server.
 
-`OAUTH_ALLOWED_GITHUB_USERS` is the security boundary around the shared
-university account. Do not remove the allowlist or add users who should not see
-the account data.
+`OAUTH_ALLOWED_GITHUB_USERS` is only a bootstrap list. On that user's next
+authenticated request, the server records their immutable numeric GitHub ID
+and copies the legacy `.env` Moodle credentials into their encrypted database
+record. New users must be invited with the admin command below.
+
+Never rotate `CREDENTIAL_ENCRYPTION_KEY` while the SQLite database contains
+credentials. Losing it makes those credential records unrecoverable.
 
 ## Deploy
 
@@ -45,8 +50,9 @@ docker compose ps
 docker compose logs --tail=100 ekursy-mcp
 ```
 
-The OAuth state and downloaded course files use named Docker volumes, so they
-survive container recreation and are not stored in the Git checkout.
+The SQLite account database, OAuth state, and downloaded course files use named
+Docker volumes, so they survive container recreation and are not stored in the
+Git checkout.
 
 To install nginx and obtain the certificate on Ubuntu, copy
 `deploy/install-nginx.sh` to the VPS and run:
@@ -70,8 +76,40 @@ sudo bash ~/install-ekursy-nginx.sh you@example.com
 
 Add a custom MCP server/plugin with the server URL
 `https://mk.uni.markrz0.dev/mcp` and OAuth authentication. Complete the GitHub
-authorization as the allowlisted account. Then install the resulting plugin and
-use it from the conversation in which you create the scheduled task.
+authorization as an invited account. Then install the resulting plugin and use
+it from the conversation in which you create the scheduled task.
+
+The first account listed in `OAUTH_ALLOWED_GITHUB_USERS` is bootstrapped on its
+next request. Once `docker compose exec ekursy-mcp /app/.venv/bin/python
+src/admin.py list` shows `credentials=configured`, the legacy
+`MOODLE_USERNAME` and `MOODLE_PASSWORD` values may be removed from `.env`.
+
+## Add a friend
+
+Invite their GitHub account from the VPS. The command resolves the login to
+GitHub's immutable numeric user ID before storing it:
+
+```bash
+cd /home/saell/ekursy-mcp
+docker compose exec ekursy-mcp /app/.venv/bin/python src/admin.py invite THEIR_GITHUB_LOGIN
+docker compose exec ekursy-mcp /app/.venv/bin/python src/admin.py list
+```
+
+Your friend then adds `https://mk.uni.markrz0.dev/mcp` in ChatGPT and completes
+GitHub OAuth. In ChatGPT they ask the connector to run
+`create_account_setup_link`, open the returned short-lived one-time link in a
+browser, and enter their own Moodle credentials. The server validates and
+encrypts them directly; they do not pass through ChatGPT.
+
+Disable or re-enable access without deleting the encrypted record:
+
+```bash
+docker compose exec ekursy-mcp /app/.venv/bin/python src/admin.py disable THEIR_GITHUB_LOGIN
+docker compose exec ekursy-mcp /app/.venv/bin/python src/admin.py enable THEIR_GITHUB_LOGIN
+```
+
+Each Moodle login has an isolated server-side session. Tool calls resolve the
+authenticated GitHub ID to exactly one database record before accessing Moodle.
 
 The exact availability of custom MCP servers and scheduled tasks depends on
 your ChatGPT plan and workspace policy.

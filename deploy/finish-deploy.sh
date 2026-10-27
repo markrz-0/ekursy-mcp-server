@@ -10,6 +10,12 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
+if ! grep -q '^CREDENTIAL_ENCRYPTION_KEY=.' "${ENV_FILE}"; then
+  printf '\nCREDENTIAL_ENCRYPTION_KEY=%s\n' "$(openssl rand -hex 32)" >>"${ENV_FILE}"
+  chmod 600 "${ENV_FILE}"
+  echo "Generated the persistent credential encryption key."
+fi
+
 read -r -p "GitHub OAuth client ID: " GITHUB_CLIENT_ID
 read -r -s -p "GitHub OAuth client secret: " GITHUB_CLIENT_SECRET
 echo

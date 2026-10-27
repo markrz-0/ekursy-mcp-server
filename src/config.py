@@ -8,6 +8,9 @@ PASSWORD = os.environ.get("MOODLE_PASSWORD")
 PORT = int(os.environ.get('PORT', '6969'))
 API_BASE_URL = os.environ.get("MOODLE_API_BASE", "http://moodle-api:8080")
 TIMEOUT = float(os.environ.get("MOODLE_TIMEOUT", "30.0"))
+DATABASE_PATH = os.environ.get("DATABASE_PATH", "/app/data/ekursy.db")
+CREDENTIAL_ENCRYPTION_KEY = os.environ.get("CREDENTIAL_ENCRYPTION_KEY")
+ACCOUNT_SETUP_TOKEN_TTL = int(os.environ.get("ACCOUNT_SETUP_TOKEN_TTL", "600"))
 MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
 MCP_AUTH_PROVIDER = os.environ.get("MCP_AUTH_PROVIDER", "none").lower()
 MCP_PUBLIC_URL = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/")
@@ -33,10 +36,6 @@ OAUTH_ALLOWED_REDIRECT_URIS = [
     if uri.strip()
 ]
 
-if not USERNAME or not PASSWORD:
-    print("CRITICAL ERROR: MOODLE_USERNAME and MOODLE_PASSWORD are required.", file=sys.stderr)
-    sys.exit(1)
-
 if MCP_AUTH_PROVIDER not in {"none", "github"}:
     print("CRITICAL ERROR: MCP_AUTH_PROVIDER must be 'none' or 'github'.", file=sys.stderr)
     sys.exit(1)
@@ -54,7 +53,7 @@ if MCP_AUTH_PROVIDER == "github":
         "OAUTH_GITHUB_CLIENT_ID": OAUTH_GITHUB_CLIENT_ID,
         "OAUTH_GITHUB_CLIENT_SECRET": OAUTH_GITHUB_CLIENT_SECRET,
         "OAUTH_JWT_SIGNING_KEY": OAUTH_JWT_SIGNING_KEY,
-        "OAUTH_ALLOWED_GITHUB_USERS": OAUTH_ALLOWED_GITHUB_USERS,
+        "CREDENTIAL_ENCRYPTION_KEY": CREDENTIAL_ENCRYPTION_KEY,
     }
     missing = [name for name, value in required_oauth_values.items() if not value]
     if missing:
@@ -64,6 +63,14 @@ if MCP_AUTH_PROVIDER == "github":
         )
         sys.exit(1)
 
+if MCP_AUTH_PROVIDER == "none" and (not USERNAME or not PASSWORD):
+    print(
+        "CRITICAL ERROR: Local no-auth mode requires MOODLE_USERNAME and MOODLE_PASSWORD.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+if MCP_AUTH_PROVIDER == "github":
     parsed_public_url = urlsplit(MCP_PUBLIC_URL)
     if parsed_public_url.scheme != "https" or not parsed_public_url.netloc:
         print("CRITICAL ERROR: MCP_PUBLIC_URL must be an HTTPS origin.", file=sys.stderr)

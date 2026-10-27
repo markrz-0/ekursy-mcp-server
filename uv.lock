@@ -296,6 +296,7 @@ name = "ekursy-mcp-py"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "fastmcp" },
     { name = "httpx" },
     { name = "pypdf" },
@@ -303,6 +304,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=46.0.3" },
     { name = "fastmcp", specifier = ">=4.1.4,<5" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pypdf", specifier = ">=6.12.2" },

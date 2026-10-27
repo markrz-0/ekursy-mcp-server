@@ -10,3 +10,9 @@ wheels/
 .venv
 
 .env
+
+# Local persistent account data
+data/
+*.db
+*.db-wal
+*.db-shm
