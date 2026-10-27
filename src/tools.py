@@ -34,7 +34,7 @@ PROFILE_SCHEMA = {
 
 def _require_moodle_user_id() -> str:
     account = require_current_account()
-    if account.id != "local" and not account.has_credentials:
+    if not account.has_credentials:
         raise ToolError(
             "Moodle credentials are not configured. "
             "Call create_account_setup_link and open the returned link."
@@ -73,8 +73,6 @@ async def get_connection_profile() -> dict[str, str]:
 async def create_account_setup_link() -> str:
     """Create a short-lived browser link for adding or replacing Moodle credentials."""
     account = require_current_account()
-    if account.id == "local":
-        raise ToolError("Account setup links are only available in OAuth mode")
     token = get_account_store().create_setup_token(
         account.id, ACCOUNT_SETUP_TOKEN_TTL
     )

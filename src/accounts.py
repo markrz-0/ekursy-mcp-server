@@ -178,7 +178,6 @@ class AccountStore:
         github_user_id: str,
         github_login: str,
         bootstrap_logins: set[str],
-        bootstrap_credentials: tuple[str, str] | None = None,
     ) -> bool:
         account = self.get_by_github_id(github_user_id)
         if account is not None:
@@ -194,11 +193,7 @@ class AccountStore:
         if github_login.lower() not in bootstrap_logins:
             return False
 
-        account = self.invite(github_user_id, github_login)
-        if bootstrap_credentials and not account.has_credentials:
-            self.set_credentials(
-                account.id, bootstrap_credentials[0], bootstrap_credentials[1]
-            )
+        self.invite(github_user_id, github_login)
         return True
 
     def set_enabled(self, github_user_id: str, enabled: bool) -> bool:

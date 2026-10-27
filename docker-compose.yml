@@ -21,8 +21,6 @@ services:
     environment:
       - MOODLE_API_BASE=http://ekursy-zero:8080
       - PORT=6969
-      - MCP_TRANSPORT=${MCP_TRANSPORT:-streamable-http}
-      - MCP_AUTH_PROVIDER=${MCP_AUTH_PROVIDER:-github}
       - MCP_PUBLIC_URL=${MCP_PUBLIC_URL:-https://mk.uni.markrz0.dev}
       - RUNNING_IN_DOCKER=true
       - FASTMCP_HOME=/app/data

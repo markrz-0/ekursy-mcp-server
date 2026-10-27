@@ -6,7 +6,7 @@ from collections import defaultdict
 import httpx
 
 from accounts import CredentialsNotConfigured, get_account_store
-from config import API_BASE_URL, PASSWORD, USERNAME
+from config import API_BASE_URL
 
 
 _active_session_keys: dict[str, str] = {}
@@ -14,12 +14,7 @@ _session_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
 async def login_to_moodle(client: httpx.AsyncClient, user_id: str) -> str:
-    if user_id == "local":
-        if not USERNAME or not PASSWORD:
-            raise CredentialsNotConfigured("Local Moodle credentials are missing")
-        username, password = USERNAME, PASSWORD
-    else:
-        username, password = get_account_store().get_credentials(user_id)
+    username, password = get_account_store().get_credentials(user_id)
     response = await client.post(
         f"{API_BASE_URL}/api/login",
         json={"email": username, "password": password},

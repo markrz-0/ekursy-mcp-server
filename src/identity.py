@@ -4,7 +4,6 @@ from fastmcp.server.auth import AccessToken
 from fastmcp.server.dependencies import get_access_token
 
 from accounts import Account, AccountNotFound, get_account_store
-from config import MCP_AUTH_PROVIDER
 
 
 def github_identity_from_token(token: AccessToken | None) -> tuple[str, str] | None:
@@ -21,14 +20,6 @@ def github_identity_from_token(token: AccessToken | None) -> tuple[str, str] | N
 
 
 def require_current_account() -> Account:
-    if MCP_AUTH_PROVIDER == "none":
-        return Account(
-            id="local",
-            github_user_id="local",
-            github_login="local",
-            enabled=True,
-            has_credentials=True,
-        )
     identity = github_identity_from_token(get_access_token())
     if identity is None:
         raise AccountNotFound("Authenticated GitHub identity is unavailable")

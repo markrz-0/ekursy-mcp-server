@@ -20,12 +20,10 @@ class AllowlistedGitHubProvider(GitHubProvider):
         *,
         account_store: AccountStore,
         bootstrap_logins: set[str],
-        bootstrap_credentials: tuple[str, str] | None,
         **kwargs: Any,
     ) -> None:
         self.account_store = account_store
         self.bootstrap_logins = {login.lower() for login in bootstrap_logins}
-        self.bootstrap_credentials = bootstrap_credentials
         super().__init__(**kwargs)
 
     async def _extract_upstream_claims(
@@ -70,7 +68,6 @@ class AllowlistedGitHubProvider(GitHubProvider):
             github_user_id,
             github_login,
             self.bootstrap_logins,
-            self.bootstrap_credentials,
         ):
             logger.warning("Rejected OAuth for a GitHub user who was not invited")
             return None

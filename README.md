@@ -27,16 +27,16 @@ port is bound only to `127.0.0.1`; nginx is the public TLS endpoint.
 2. Set its homepage URL to `https://mk.uni.markrz0.dev`.
 3. Set its authorization callback URL to
    `https://mk.uni.markrz0.dev/auth/callback`.
-4. Copy `.env.example` to `.env`, fill the GitHub client ID/secret and optional
-   initial university credentials, and independently generate both
+4. Copy `.env.example` to `.env`, fill the GitHub client ID/secret, and
+   independently generate both
    `OAUTH_JWT_SIGNING_KEY` and `CREDENTIAL_ENCRYPTION_KEY` with
    `openssl rand -hex 32`.
 5. Keep `.env` mode `600` on the server.
 
 `OAUTH_ALLOWED_GITHUB_USERS` is only a bootstrap list. On that user's next
 authenticated request, the server records their immutable numeric GitHub ID
-and copies the legacy `.env` Moodle credentials into their encrypted database
-record. New users must be invited with the admin command below.
+with no Moodle credentials. New users must be invited with the admin command
+below.
 
 Never rotate `CREDENTIAL_ENCRYPTION_KEY` while the SQLite database contains
 credentials. Losing it makes those credential records unrecoverable.
@@ -80,9 +80,8 @@ authorization as an invited account. Then install the resulting plugin and use
 it from the conversation in which you create the scheduled task.
 
 The first account listed in `OAUTH_ALLOWED_GITHUB_USERS` is bootstrapped on its
-next request. Once `docker compose exec ekursy-mcp /app/.venv/bin/python
-src/admin.py list` shows `credentials=configured`, the legacy
-`MOODLE_USERNAME` and `MOODLE_PASSWORD` values may be removed from `.env`.
+next request. Ask the connector to run `create_account_setup_link`, open the
+returned browser link, and enter your Moodle credentials there.
 
 ## Add a friend
 
@@ -116,33 +115,13 @@ your ChatGPT plan and workspace policy.
 
 ## Local development
 
-Initialize the scraper submodule and install dependencies with `uv`. For local
-stdio use, `.env` only needs `MOODLE_USERNAME` and `MOODLE_PASSWORD`; stdio
-defaults to no MCP-layer OAuth:
+Initialize the scraper submodule, copy `.env.example` to `.env`, configure the
+OAuth settings, and install dependencies with `uv`:
 
 ```bash
 git submodule update --init --recursive
 uv sync --frozen
-uv run src/main.py
-```
-
-Example stdio client configuration:
-
-```json
-{
-  "mcpServers": {
-    "ekursy": {
-      "command": "uv",
-      "args": ["run", "src/main.py"],
-      "cwd": "C:\\path\\to\\ekursy-mcp-py",
-      "env": {
-        "MOODLE_USERNAME": "your.email@student.put.poznan.pl",
-        "MOODLE_PASSWORD": "your_moodle_password",
-        "MOODLE_API_BASE": "http://localhost:8080"
-      }
-    }
-  }
-}
+docker compose up --build
 ```
 
 Run tests with:

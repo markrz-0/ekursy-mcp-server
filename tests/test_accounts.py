@@ -9,8 +9,11 @@ from pathlib import Path
 from fastmcp.server.auth import AccessToken
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-os.environ.setdefault("MOODLE_USERNAME", "local-test@example.edu")
-os.environ.setdefault("MOODLE_PASSWORD", "local-test-password")
+os.environ.setdefault("MCP_PUBLIC_URL", "https://mcp.example.test")
+os.environ.setdefault("OAUTH_GITHUB_CLIENT_ID", "test-client")
+os.environ.setdefault("OAUTH_GITHUB_CLIENT_SECRET", "test-secret")
+os.environ.setdefault("OAUTH_JWT_SIGNING_KEY", "j" * 64)
+os.environ.setdefault("CREDENTIAL_ENCRYPTION_KEY", "k" * 64)
 
 from accounts import (  # noqa: E402
     AccountStore,
@@ -62,15 +65,15 @@ class AccountStoreTests(unittest.TestCase):
             connection.commit()
         self.assertIsNone(self.store.account_for_setup_token(token))
 
-    def test_bootstrap_is_one_time_and_disabled_account_stays_disabled(self):
+    def test_bootstrap_creates_empty_account_and_disabled_stays_disabled(self):
         allowed = {"owner"}
         self.assertTrue(
-            self.store.authorize_identity(
-                "777", "Owner", allowed, ("owner@example.edu", "pw")
-            )
+            self.store.authorize_identity("777", "Owner", allowed)
         )
         account = self.store.get_by_github_id("777")
-        self.assertEqual(self.store.get_credentials(account.id), ("owner@example.edu", "pw"))
+        self.assertFalse(account.has_credentials)
+        with self.assertRaises(CredentialsNotConfigured):
+            self.store.get_credentials(account.id)
         self.assertTrue(self.store.set_enabled("777", False))
         self.assertFalse(self.store.authorize_identity("777", "RenamedOwner", allowed))
         self.assertFalse(self.store.get_by_github_id("777").enabled)
