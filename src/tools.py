@@ -11,7 +11,6 @@ from identity import require_current_account
 from parsers import (
     parse_page_fragments,
     format_grades_hierarchy,
-    save_resource,
     format_resource,
     format_forum_details,
     format_discussion_details
@@ -184,39 +183,33 @@ async def get_course_deadlines(
 
 
 @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
-async def resolve_material_link(resourceId: str, kind: str, savepath: str | None = None):
+async def resolve_material_link(resourceId: str, kind: str):
     """
-    Download and parse internal university files (PDFs, Images) - resource.
+    Return an internal university file as native MCP content.
     
     Args:
         resourceId: Unique id of the resource
         kind: Resource type selections (e.g., 'resource', 'assign')
-        savepath: Optional directory path to save the resource instead of parsing it.
     """
     target_path = f"/api/resource?id={resourceId}&kind={kind or 'resource'}"
     user_id = _require_moodle_user_id()
     async with httpx.AsyncClient(follow_redirects=False, timeout=TIMEOUT) as client:
         response = await fetch_with_auth(client, user_id, target_path)
-        if savepath:
-            return await save_resource(response, savepath, resourceId=resourceId, kind=kind)
-        return await format_resource(response)
+        return await format_resource(response, resourceId=resourceId, kind=kind)
 
 @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
-async def resolve_proxy(proxyPath: str, savepath: str | None = None):
+async def resolve_proxy(proxyPath: str):
     """
-    Download and parse internal university proxies (PDFs, Images, URLs etc).
+    Return an internal university proxy as native MCP content.
     
     Args:
         proxyPath: Path of the proxy page fragment
-        savepath: Optional directory path to save the resource instead of parsing it.
     """
     target_path = f"/api/proxy?path={urllib.parse.quote(proxyPath)}"
     user_id = _require_moodle_user_id()
     async with httpx.AsyncClient(follow_redirects=False, timeout=TIMEOUT) as client:
         response = await fetch_with_auth(client, user_id, target_path)
-        if savepath:
-            return await save_resource(response, savepath, proxyPath=proxyPath)
-        return await format_resource(response)
+        return await format_resource(response, proxyPath=proxyPath)
 
 @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 async def get_forum(id: str) -> str:

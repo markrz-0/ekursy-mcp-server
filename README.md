@@ -51,9 +51,8 @@ docker compose ps
 docker compose logs --tail=100 ekursy-mcp
 ```
 
-The SQLite account database, OAuth state, and downloaded course files use named
-Docker volumes, so they survive container recreation and are not stored in the
-Git checkout.
+The SQLite account database and OAuth state use a named Docker volume, so they
+survive container recreation and are not stored in the Git checkout.
 
 To install nginx and obtain the certificate on Ubuntu, copy
 `deploy/install-nginx.sh` to the VPS and run:

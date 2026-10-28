@@ -1,11 +1,16 @@
 import os
 import re
-import io
 import urllib.parse
 import mimetypes
 import httpx
-from pypdf import PdfReader
-from fastmcp.utilities.types import Image
+from fastmcp.utilities.types import File, Image
+
+
+MIME_EXTENSION_OVERRIDES = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+}
 
 # 3. Parser Helpers
 def parse_page_fragments(fragments: list) -> str:
@@ -116,32 +121,33 @@ def format_grades_hierarchy(nodes: list, indent: str = "") -> str:
             
     return output
 
-async def format_resource(response: httpx.Response):
+async def format_resource(
+    response: httpx.Response,
+    resourceId: str | None = None,
+    kind: str | None = None,
+    proxyPath: str | None = None,
+):
     if 300 <= response.status_code < 400:
         return f"Resource redirects to: {response.headers.get('location')}"
     if not response.is_success:
         return "Failed to download material"
 
-    content_type = response.headers.get("content-type", "unknown").lower()
+    content_type = response.headers.get(
+        "content-type", "application/octet-stream"
+    ).split(";", 1)[0].strip().lower()
     content_bytes = response.content
-
-    if "application/pdf" in content_type:
-        try:
-            reader = PdfReader(io.BytesIO(content_bytes))
-            text = "\n".join(page.extract_text() for page in reader.pages if page.extract_text())
-            return text
-        except Exception as err:
-            return f"PDF Parse Failed: {str(err)}"
 
     if content_type.startswith("image/"):
         # FastMCP handles images directly via the Image object
-        img_format = content_type.split("/")[-1].split(";")[0] # e.g., 'png' or 'jpeg'
+        img_format = content_type.split("/", 1)[1]  # e.g., 'png' or 'jpeg'
         return Image(data=content_bytes, format=img_format)
 
     if any(fmt in content_type for fmt in ["json", "text", "markdown"]):
         return content_bytes.decode("utf-8", errors="ignore")
 
-    return f"Successfully resolved binary ({content_type})."
+    filename = determine_filename(response, resourceId, kind, proxyPath)
+    file_format = content_type.split("/", 1)[1]
+    return File(data=content_bytes, format=file_format, name=filename)
 
 def determine_filename(response: httpx.Response, resourceId: str | None = None, kind: str | None = None, proxyPath: str | None = None) -> str:
     content_disposition = response.headers.get("content-disposition", "")
@@ -162,7 +168,7 @@ def determine_filename(response: httpx.Response, resourceId: str | None = None, 
 
     content_type = response.headers.get("content-type", "").lower()
     mime = content_type.split(";")[0].strip()
-    extension = mimetypes.guess_extension(mime) or ""
+    extension = MIME_EXTENSION_OVERRIDES.get(mime) or mimetypes.guess_extension(mime) or ".bin"
     
     if mime == "application/pdf":
         extension = ".pdf"
@@ -189,36 +195,3 @@ def determine_filename(response: httpx.Response, resourceId: str | None = None, 
         filename = f"downloaded_resource{extension}"
         
     return filename
-
-async def save_resource(response: httpx.Response, savepath: str, resourceId: str | None = None, kind: str | None = None, proxyPath: str | None = None) -> str:
-    if 300 <= response.status_code < 400:
-        return f"Resource redirects to: {response.headers.get('location')}"
-    if not response.is_success:
-        return f"Failed to download material: HTTP {response.status_code}"
-
-    is_docker = os.environ.get("RUNNING_IN_DOCKER") == "true"
-    if is_docker:
-        savepath = "/app/downloads"
-
-    try:
-        os.makedirs(savepath, exist_ok=True)
-    except Exception as e:
-        return f"Failed to create directory '{savepath}': {str(e)}"
-
-    filename = determine_filename(response, resourceId, kind, proxyPath)
-    filepath = os.path.join(savepath, filename)
-    
-    try:
-        with open(filepath, "wb") as f:
-            f.write(response.content)
-        if is_docker:
-            host_downloads_dir = os.environ.get("HOST_DOWNLOADS_DIR")
-            if host_downloads_dir:
-                host_filepath = os.path.join(host_downloads_dir, filename)
-                if ":" in host_filepath:
-                    host_filepath = host_filepath.replace("/", "\\")
-                return f"Successfully saved resource to host machine at: {host_filepath} ({len(response.content)} bytes)"
-            return f"Successfully saved resource to './downloads/{filename}' on the host machine ({len(response.content)} bytes)"
-        return f"Successfully saved resource to {os.path.abspath(filepath)} ({len(response.content)} bytes)"
-    except Exception as e:
-        return f"Failed to save resource to {filepath}: {str(e)}"

@@ -22,11 +22,9 @@ services:
       - MOODLE_API_BASE=http://ekursy-zero:8080
       - PORT=6969
       - MCP_PUBLIC_URL=${MCP_PUBLIC_URL:-https://mk.uni.markrz0.dev}
-      - RUNNING_IN_DOCKER=true
       - FASTMCP_HOME=/app/data
       - DATABASE_PATH=/app/data/ekursy.db
     volumes:
-      - ekursy-downloads:/app/downloads
       - ekursy-oauth-data:/app/data
     security_opt:
       - no-new-privileges:true
@@ -40,5 +38,4 @@ services:
       start_period: 10s
 
 volumes:
-  ekursy-downloads:
   ekursy-oauth-data:

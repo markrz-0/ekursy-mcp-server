@@ -9,7 +9,7 @@ WORKDIR /app
 
 RUN groupadd --gid 10001 appuser \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin appuser \
-    && mkdir -p /app/data /app/downloads \
+    && mkdir -p /app/data \
     && chown -R appuser:appuser /app
 
 # Copy dependency files first to leverage caching
