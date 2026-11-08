@@ -136,6 +136,14 @@ async def format_resource(
         "content-type", "application/octet-stream"
     ).split(";", 1)[0].strip().lower()
     content_bytes = response.content
+    filename = determine_filename(response, resourceId, kind, proxyPath)
+
+    type_name, separator, subtype = content_type.partition("/")
+    if not separator or not type_name or not subtype or "/" in subtype:
+        if filename.lower().endswith(".ipynb"):
+            content_type = "application/x-ipynb+json"
+        else:
+            content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
 
     if content_type.startswith("image/"):
         # FastMCP handles images directly via the Image object
@@ -145,7 +153,6 @@ async def format_resource(
     if any(fmt in content_type for fmt in ["json", "text", "markdown"]):
         return content_bytes.decode("utf-8", errors="ignore")
 
-    filename = determine_filename(response, resourceId, kind, proxyPath)
     file_format = content_type.split("/", 1)[1]
     return File(data=content_bytes, format=file_format, name=filename)
 

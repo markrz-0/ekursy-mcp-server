@@ -86,6 +86,30 @@ class FormatResourceTests(unittest.TestCase):
         result = self.format(self.response(status_code=404))
         self.assertEqual(result, "Failed to download material")
 
+    def test_malformed_content_type_is_inferred_from_notebook_filename(self):
+        content = b'{"cells": []}'
+        result = self.format(
+            self.response(
+                content,
+                content_type="application",
+                headers={"content-disposition": 'inline; filename="Lab3.ipynb"'},
+            )
+        )
+
+        self.assertEqual(result, content.decode())
+
+    def test_malformed_content_type_without_filename_uses_binary_fallback(self):
+        result = self.format(
+            self.response(b"\x00\x01", content_type="application"),
+            resourceId="3465717",
+            kind="resource",
+        )
+
+        self.assertIsInstance(result, File)
+        resource = result.to_resource_content().resource
+        self.assertEqual(resource.mime_type, "application/octet-stream")
+        self.assertEqual(resource.uri, "file:///resource_3465717.bin")
+
 
 if __name__ == "__main__":
     unittest.main()
